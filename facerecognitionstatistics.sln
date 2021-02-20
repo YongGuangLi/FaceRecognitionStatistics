@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "facerecognitionstatistics", "facerecognitionstatistics.vcxproj", "{4550FCE9-6B87-49A1-91B8-5F887D274405}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "thriftDemo", "..\..\QtProjects\thriftDemo\thriftDemo\thriftDemo.vcxproj", "{01C066A2-EA26-36B3-BF0A-626B90678257}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4550FCE9-6B87-49A1-91B8-5F887D274405}.Debug|Win32.ActiveCfg = Debug|Win32
+		{4550FCE9-6B87-49A1-91B8-5F887D274405}.Debug|Win32.Build.0 = Debug|Win32
+		{4550FCE9-6B87-49A1-91B8-5F887D274405}.Release|Win32.ActiveCfg = Release|Win32
+		{4550FCE9-6B87-49A1-91B8-5F887D274405}.Release|Win32.Build.0 = Release|Win32
+		{01C066A2-EA26-36B3-BF0A-626B90678257}.Debug|Win32.ActiveCfg = Debug|Win32
+		{01C066A2-EA26-36B3-BF0A-626B90678257}.Debug|Win32.Build.0 = Debug|Win32
+		{01C066A2-EA26-36B3-BF0A-626B90678257}.Release|Win32.ActiveCfg = Release|Win32
+		{01C066A2-EA26-36B3-BF0A-626B90678257}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
