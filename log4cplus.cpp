@@ -23,14 +23,29 @@ Log4Cplus * Log4Cplus::GetInstance()
 	return log4Cplus_;
 }
 
-void Log4Cplus::initPropertyFile( string filename, string logger)
+void Log4Cplus::initPropertyFile( string filename, string name)
 {
  	ConfigureAndWatchThread configureThread(LOG4CPLUS_TEXT(filename), 5 * 1000);  //¼à¿Ø.properties¸üÐÂ
- 	logger_ = log4cplus::Logger::getInstance(LOG4CPLUS_TEXT(logger));
+ 	logger_ = log4cplus::Logger::getInstance(LOG4CPLUS_TEXT(name)); 
 } 
 
 
-void Log4Cplus::logDebug( string loginfo)
+void Log4Cplus::debug( string logEvent)
 {
-	LOG4CPLUS_DEBUG(logger_, LOG4CPLUS_TEXT(loginfo));
+	LOG4CPLUS_DEBUG(logger_, LOG4CPLUS_TEXT(logEvent));
+}
+
+void Log4Cplus::info( string logEvent)
+{
+	LOG4CPLUS_INFO(logger_, LOG4CPLUS_TEXT(logEvent));
+}
+
+void Log4Cplus::warn( string logEvent)
+{
+	LOG4CPLUS_WARN(logger_, LOG4CPLUS_TEXT(logEvent));
+}
+
+void Log4Cplus::error( string logEvent)
+{
+	LOG4CPLUS_ERROR(logger_, LOG4CPLUS_TEXT(logEvent));
 }

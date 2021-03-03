@@ -7,6 +7,7 @@
 #include <QSettings>
 #include <QDebug>
 #include <QStringList>
+#include "log4cplus.h"
 
 #define SingletonConfig ConfigIni::GetInstance()
 
@@ -26,7 +27,9 @@ public:
 
 	QString getJavaUrl() const;
 
-	QStringList getDoorId() const;
+	QStringList getDeviceId() const;
+
+	QStringList getDispDeptName() const;
 private:
     explicit ConfigIni(QObject *parent = 0);
     static ConfigIni* configIni;
@@ -41,7 +44,9 @@ private:
 
 	QString javaUrl_;
 
-	QStringList listDoorId_;
+	QStringList listDeviceId_;
+
+	QStringList listDispDeptName_;
 signals:
     
 public slots:

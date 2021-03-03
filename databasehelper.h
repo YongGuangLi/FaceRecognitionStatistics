@@ -1,7 +1,7 @@
 #ifndef DATABASEHELPER_H
 #define DATABASEHELPER_H
 
-
+#include "log4cplus.h"
 #include <QObject>
 #include <QSqlDatabase>
 #include <QSqlError>
@@ -22,6 +22,14 @@ typedef struct
 	QString address;
 }stPersonData;
 
+typedef struct
+{
+	QString deptuuid;
+	QString deptname;
+	QString parentdeptuuid;  
+}stDepartmentData;
+
+
 #define SingletonDBHelper DataBaseHelper::GetInstance()
 
 class DataBaseHelper : public QObject
@@ -31,7 +39,9 @@ public:
     static DataBaseHelper *GetInstance();
     bool open(QString ip,int port, QString dbName, QString user, QString passwd);
 
-    QString getError(); 
+	bool isopen(); 
+
+	QString getError();
 
 	bool readPersonData();
 
@@ -40,17 +50,15 @@ public:
 	bool readDoorFlag();
 
 	QString getAgeByPersonID(int);   
-	QString getParentUuidByUuid(QString);
-	QString getDepartmentNameByUuid(QString); 
-	QString getDepartmentUuidByPersonID(int); 
+	QString getParentUuidByChildUuid(QString);
+
+	QString getDeptNameByUuid(QString); 
+	QString getDeptUuidByPersonID(int); 
+	QString getDeptUuidByDeptName(QString); 
+
 	QString getAddressByPersonID(int);
 
-	int getDoorFlag(QString);
-
-	QMap<int, stPersonData> getPersonData();
-	QMap<QString, QString> getDepartmentParent();  //部门uuid   父部门uuid
-	QMap<QString, QString> getDepartmentName();    //部门uuid   部门名
-	QMap<QString, int> getDoorFlag();
+	int getDoorFlag(QString); 
 private:
     explicit DataBaseHelper(QObject *parent = 0);
     static DataBaseHelper * dbHelp_;
@@ -62,8 +70,7 @@ private:
     QString user_;
     QString passwd_;
 	QMap<int, stPersonData> mapPersonData;
-	QMap<QString, QString> mapDepartmentParent;  //部门uuid   父部门uuid
-	QMap<QString, QString> mapDepartmentName;    //部门uuid   部门名
+	QMap<QString, stDepartmentData> mapDepartmentData;  
 	QMap<QString, int> mapDoorFlag;
 signals:
     

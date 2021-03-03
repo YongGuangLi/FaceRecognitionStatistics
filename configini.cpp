@@ -13,7 +13,8 @@ ConfigIni *ConfigIni::GetInstance()
 
 ConfigIni::ConfigIni(QObject *parent) : QObject(parent)
 {
-    if(QFile::exists(QCoreApplication::applicationDirPath() + "/config.ini"))
+	QString configFile = QCoreApplication::applicationDirPath() + "/config.ini";
+    if(QFile::exists(configFile))
     {
         QSettings* settings_ = new QSettings(QCoreApplication::applicationDirPath() + "/config.ini",QSettings::IniFormat);
         settings_->setIniCodec("UTF-8");
@@ -31,17 +32,20 @@ ConfigIni::ConfigIni(QObject *parent) : QObject(parent)
 		settings_->endGroup(); 
 
 		settings_->beginGroup("JAVAURL");
-		javaUrl_= settings_->value("javaUrl").toString(); 
-		qDebug()<<javaUrl_;
+		javaUrl_= settings_->value("javaUrl").toString();  
 		settings_->endGroup(); 
 
-		settings_->beginGroup("DOOR");
-		listDoorId_ = settings_->value("id").toString().split(" "); 
+		settings_->beginGroup("DEVICEID");
+		listDeviceId_ = settings_->value("id").toString().split(" "); 
+		settings_->endGroup(); 
+
+		settings_->beginGroup("DEPARTMENT");
+		listDispDeptName_ = settings_->value("name").toString().split(" "); 
 		settings_->endGroup(); 
     }
     else
     {
-        qWarning()<<QCoreApplication::applicationDirPath() + "/config.ini" + " not exist";
+        SingletonLog->warn(configFile.toStdString() + " not exist");
     }
 }
 
@@ -82,11 +86,15 @@ QString ConfigIni::getJavaUrl() const
 	return javaUrl_;
 }
  
-QStringList  ConfigIni::getDoorId() const
+QStringList  ConfigIni::getDeviceId() const
 {
-	return listDoorId_;
+	return listDeviceId_;
 }
  
+QStringList  ConfigIni::getDispDeptName() const
+{
+	return listDispDeptName_;
+}
 
 
 

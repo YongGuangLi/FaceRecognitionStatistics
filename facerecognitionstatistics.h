@@ -17,6 +17,7 @@ using namespace com::hikvision:: cms::api::eps::beds;
 #include <QEventLoop>
 #include <QTimer>
 #include <QList> 
+#include <QStringList>
 #include "ui_facerecognitionstatistics.h"
 #include "simpleasyncconsumer.h" 
  
@@ -53,7 +54,7 @@ private:
 	QTimer* currentTimer;
 	QNetworkAccessManager *picUrlManager; 
 	QEventLoop eventLoop;
-	QMap<QString, QString> mapDepartmentSeq;  
+	QMap<QString, QString> mapDispDeptInfo;  
 };
 
 #endif // FACERECOGNITIONSTATISTICS_H

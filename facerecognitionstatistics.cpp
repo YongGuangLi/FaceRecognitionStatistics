@@ -1,42 +1,47 @@
 #include "facerecognitionstatistics.h"
 
 facerecognitionstatistics::facerecognitionstatistics(QWidget *parent, Qt::WFlags flags)
-	: QWidget(parent, flags)
+	: QWidget(parent, flags),consumer(NULL),picUrlManager(NULL),currentTimer(NULL)
 {
 	ui.setupUi(this);  
-	this->showFullScreen();
-	ui.pushButton->hide(); 
+	ui.pushButton->hide();
+	this->showFullScreen(); 
 	 
 	connect(ui.pushButton, SIGNAL(clicked()), this, SLOT(pushButtonClick()));
 	 
 	//初始化日志系统 
  	SingletonLog->initPropertyFile(QString(QApplication::applicationDirPath() + "/log4cplus.properties").toStdString(), "Log");
- 	SingletonLog->logDebug("------------------Start-------------------------");
-	 
-	//初始化表格样式
-	initTableStyle();   
-
+ 	SingletonLog->debug("------------------Start-------------------------");
+	  
 	//请求图片 请求表格Json数据
-	picUrlManager = new QNetworkAccessManager();    
+	picUrlManager = new QNetworkAccessManager(this);    
 	connect(picUrlManager, SIGNAL(finished(QNetworkReply*)), &eventLoop, SLOT(quit())); 
-
-	//请求表格数据
-	initTableWidget();        
 	 
-	currentTimer = new QTimer();
+	currentTimer = new QTimer(this);
 	connect(currentTimer, SIGNAL(timeout()), this, SLOT(dispCurrentTime()));
 	currentTimer->start(1 * 1000); 
-
-	//读取mysql数据
+	  
+	//读取mysql数据 
 	if(SingletonDBHelper->open( SingletonConfig->getIpMySql(), SingletonConfig->getPortMySql(), SingletonConfig->getDbNameMySql(), 
-								 SingletonConfig->getUserNameMySql(), SingletonConfig->getPassWdMySql())) {
-		SingletonLog->logDebug("MYSQL Connect Success!");  
+								 SingletonConfig->getUserNameMySql(), SingletonConfig->getPassWdMySql())) 
+	{
+		SingletonLog->debug("MYSQL Connect Success!");  
 		SingletonDBHelper->readDepartment();
 		SingletonDBHelper->readPersonData();
-		SingletonDBHelper->readDoorFlag();
-	}else
-		SingletonLog->logDebug(SingletonDBHelper->getError().toStdString());  
+		SingletonDBHelper->readDoorFlag(); 
+	}
+	else
+	{
+		SingletonLog->warn(QString("MYSQL Connect Failure:%1").arg(SingletonConfig->getIpMySql()).toStdString());
+		SingletonLog->warn(SingletonDBHelper->getError().toLocal8Bit().data());
+	} 
 
+	//初始化表格样式
+	initTableStyle(); 
+
+	//初始化表格数据
+	initTableWidget(); 
+	  
 	//初始化activemq
 	activemq::library::ActiveMQCPP::initializeLibrary(); 
 	std::string brokerURI = SingletonConfig->getActiveMQ().toStdString();
@@ -49,7 +54,7 @@ facerecognitionstatistics::facerecognitionstatistics(QWidget *parent, Qt::WFlags
 	connect(consumer, SIGNAL(sendMessage(CommEventLog)), this, SLOT(receiverMessage(CommEventLog)));
 
 	// Start it up and it will listen forever.
-	consumer->runConsumer(); 
+	consumer->runConsumer();    
 }
 
 facerecognitionstatistics::~facerecognitionstatistics()
@@ -60,7 +65,7 @@ facerecognitionstatistics::~facerecognitionstatistics()
 		consumer = NULL;
 		activemq::library::ActiveMQCPP::shutdownLibrary();
 	} 
-	SingletonLog->logDebug("------------------End-------------------------");
+	SingletonLog->debug("------------------End-------------------------");
 }
 
 void facerecognitionstatistics::initTableStyle()
@@ -94,26 +99,59 @@ void facerecognitionstatistics::initTableStyle()
 void facerecognitionstatistics::initTableWidget()
 {
 	ui.tableWidget->setRowCount(0);
-	mapDepartmentSeq.clear();
-	  
+
 	int rowCount = ui.tableWidget->rowCount();
 	ui.tableWidget->insertRow(rowCount); 
+
 	QTableWidgetItem *item = new QTableWidgetItem(QString::fromLocal8Bit("单位"));
 	item->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter);  
-	ui.tableWidget->setItem(rowCount,0,item);
-
+	ui.tableWidget->setItem(rowCount, 0, item);
+	 
 	QTableWidgetItem *item1 = new QTableWidgetItem(QString::fromLocal8Bit("进入人次"));
 	item1->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); 
-	ui.tableWidget->setItem(rowCount,1,item1);
+	ui.tableWidget->setItem(rowCount, 1, item1);
 
 	QTableWidgetItem *item2 = new QTableWidgetItem(QString::fromLocal8Bit("离开人次"));
 	item2->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); 
-	ui.tableWidget->setItem(rowCount,2,item2);
+	ui.tableWidget->setItem(rowCount, 2, item2);
 
 	QTableWidgetItem *item3 = new QTableWidgetItem(QString::fromLocal8Bit("在厂人数"));
 	item3->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); 
-	ui.tableWidget->setItem(rowCount,3,item3);
+	ui.tableWidget->setItem(rowCount, 3, item3);
 	    
+	QStringList listDispDeptName = SingletonConfig->getDispDeptName(); 
+	for (int i = 0; i < listDispDeptName.size(); ++i)
+	{
+		int rowCount = ui.tableWidget->rowCount();
+		ui.tableWidget->insertRow(rowCount);
+
+		QString deptName = listDispDeptName.at(i); 
+		QString deptUuid = SingletonDBHelper->getDeptUuidByDeptName(deptName); 
+		if (deptName.size() >= 6)    //浙江华业电力有限公司 名字太长
+			deptName = deptName.left(4);
+
+		if (!deptUuid.isEmpty())
+			mapDispDeptInfo[deptUuid] = deptName;
+
+		QTableWidgetItem *deptNameItem = new QTableWidgetItem(deptName);
+		deptNameItem->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); 
+		ui.tableWidget->setItem(rowCount, 0, deptNameItem); 
+
+		QTableWidgetItem *enterItem = new QTableWidgetItem("0"); 
+		enterItem->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); 
+		ui.tableWidget->setItem(rowCount, 1, enterItem);
+
+		QTableWidgetItem *leaveItem = new QTableWidgetItem("0"); 
+		leaveItem->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); 
+		ui.tableWidget->setItem(rowCount, 2, leaveItem);
+
+		QTableWidgetItem *sumItem = new QTableWidgetItem("0"); 
+		sumItem->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); 
+		ui.tableWidget->setItem(rowCount, 3, sumItem);
+	}
+	
+
+	/*
 	QByteArray byteArray;
 	QNetworkRequest request; //网络请求  
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");//设置头 
@@ -142,36 +180,19 @@ void facerecognitionstatistics::initTableWidget()
 		qDebug()<<"_order:"<<mymap["_order"].toLongLong(); 
 
 		QString order = mymap["_order"].toString();
-		QString deptUuids =  mymap["deptUuid"].toString();
+		QStringList deptUuids =  mymap["deptUuid"].toString().split(",");
 		QString deptName = QString::fromUtf8(mymap["deptName"].toByteArray());
 		QString entryCount = mymap["entryCount"].toString();
 		QString exitCount = mymap["exitCount"].toString();
 		QString stillCount = mymap["stillCount"].toString();
-		QString str = "order:" + order + " deptUuids:"+ deptUuids +  " deptName:"+ deptName + " entryCount" + entryCount + " exitCount" +  exitCount +  " stillCount" +  stillCount; 
-		SingletonLog->logDebug(str.toLocal8Bit().data());
+		QString str = "order:" + order + " deptUuids:"+ deptUuids.join(",") +  " deptName:"+ deptName + " entryCount" + entryCount + " exitCount" +  exitCount +  " stillCount" +  stillCount; 
+		SingletonLog->debug(str.toLocal8Bit().data());
 		 
-		for (int i = 0; i < deptUuids.split(",").size(); ++i) 
-			mapDepartmentSeq.insert(deptUuids.split(",").at(i), deptName);  
+		for (int i = 0; i < deptUuids.size(); ++i) 
+			mapDispDeptInfo.insert(deptUuids.at(i), deptName);  
 
-		int rowCount = ui.tableWidget->rowCount();
-		ui.tableWidget->insertRow(rowCount);
-
-		QTableWidgetItem *item = new QTableWidgetItem(deptName);
-		item->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); 
-		ui.tableWidget->setItem(rowCount,0,item);
-
-		QTableWidgetItem *enterItem = new QTableWidgetItem(entryCount); 
-		enterItem->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); 
-		ui.tableWidget->setItem(rowCount,1,enterItem);
-
-		QTableWidgetItem *leaveItem = new QTableWidgetItem(exitCount); 
-		leaveItem->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); 
-		ui.tableWidget->setItem(rowCount,2,leaveItem);
-
-		QTableWidgetItem *sumItem = new QTableWidgetItem(stillCount); 
-		sumItem->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); 
-		ui.tableWidget->setItem(rowCount,3,sumItem);
 	} 
+	*/
 }
 
 QPixmap facerecognitionstatistics::requestPicUrlData(QString picUrl)
@@ -191,9 +212,10 @@ QPixmap facerecognitionstatistics::requestPicUrlData(QString picUrl)
 }
  
 
-void facerecognitionstatistics::modifyTableData(QString department, int iEnter)
+
+void facerecognitionstatistics::modifyTableData(QString departmentName, int iEnter)
 {
-	QList<QTableWidgetItem *> listItem = ui.tableWidget->findItems(department, Qt::MatchExactly);  
+	QList<QTableWidgetItem *> listItem = ui.tableWidget->findItems(departmentName, Qt::MatchExactly);  
 	if (listItem.size() != 0)
 	{  
 		QTableWidgetItem *item = listItem.at(0);  
@@ -219,27 +241,27 @@ void facerecognitionstatistics::modifyTableData(QString department, int iEnter)
 			sumItem->setText(QString::number(--sumNum));
 		}  
 
-		if (department != QString::fromLocal8Bit("合计")) 
+		if (departmentName != QString::fromLocal8Bit("合计")) 
 			modifyTableData(QString::fromLocal8Bit("合计"), iEnter); 
 	}  
 }
 
- 
+ //同时进入，需要保存2条记录
 bool facerecognitionstatistics::judgeActionVaild(int personID, int enter)
 {
 	static int person1,person2;
 	static int enter1,enter2;
 	bool result = true;
-	 
+
 	if (person1 == personID && enter1 == enter) 
 		result = false; 
-	 
+
 	if (person2 == personID && enter2 == enter) 
 		result = false; 
-	 
+
 	person2 = person1;
 	enter2 = enter1;
-	
+
 	person1 = personID;
 	enter1 = enter;
 
@@ -248,109 +270,94 @@ bool facerecognitionstatistics::judgeActionVaild(int personID, int enter)
 
 void facerecognitionstatistics::receiverMessage(CommEventLog commEventLog)
 {   
-	int iEnter = SingletonDBHelper->getDoorFlag(commEventLog.source_idx().c_str());
 	string info = commEventLog.ext_info(); 
-	AccessEventLog accessEventLog; 
-	SingletonLog->logDebug(QString("door_id:%1, device_name:%2").arg(accessEventLog.door_id()).arg(accessEventLog.device_name().c_str()).toLocal8Bit().data());
-	
-	if(!SingletonConfig->getDoorId().contains(QString::number(accessEventLog.door_id())))
-		return;
-
+	AccessEventLog accessEventLog;  
 	if(accessEventLog.ParseFromString(info))
 	{     
-		QString str = QString("cardID:")+accessEventLog.event_card().c_str() +
+		//人脸识别设备可能会发空数据
+		if(accessEventLog.event_card().empty())
+			return;
+
+		//人脸识别设备数据图片地址有可能是空
+		if(accessEventLog.pic_url().empty())
+			return;
+		 
+		//1:进入 0:离开
+		int iEnter = SingletonDBHelper->getDoorFlag(commEventLog.source_idx().c_str());
+
+		QString str = QString("door_id:") + QString::number(accessEventLog.door_id()) +
+			" cardID:" + accessEventLog.event_card().c_str() +
 			" deviceID:" + commEventLog.source_idx().c_str() + 
 			" personID:" + QString::number(accessEventLog.person_id()) + 
 			" personName:" + QString::fromUtf8(accessEventLog.person_name().c_str()) + 
 			" deptID:" + QString::number(accessEventLog.dept_id()) + 
-			" picurl:" +  QString::fromUtf8(accessEventLog.pic_url().c_str()) + 
+			" pic_url:" +  QString::fromUtf8(accessEventLog.pic_url().c_str()) + 
 			" dept_name:" + QString::fromUtf8(accessEventLog.dept_name().c_str()) + 
-			" enter:" + QString::number(accessEventLog.in_out()) + 
-			" enter:" + QString::number(iEnter);
+			" enter:" +  QString::number(iEnter);
 
-		SingletonLog->logDebug(str.toLocal8Bit().data()); 
+		SingletonLog->debug(str.toLocal8Bit().data());  
 
-		if (!judgeActionVaild(accessEventLog.person_id(), iEnter))  //当前进入、离开重复,人脸识别设备可能发送多条数据
+		if(!SingletonConfig->getDeviceId().contains(commEventLog.source_idx().c_str()))
 		{
-			SingletonLog->logDebug(QString(QString::fromLocal8Bit("当前动作重复") + " personID:" + QString::number(accessEventLog.person_id()) + " Enter:" + QString::number(iEnter)).toLocal8Bit().data());
+			SingletonLog->debug(QString("DeviceId not contain").toStdString());  
 			return;
 		} 
 
-		if(QString::fromLocal8Bit("贵宾卡") == QString::fromUtf8(accessEventLog.dept_name().c_str()))
-		{    
-			ui.label_department2->setText(ui.label_department1->text());
-			ui.label_personname2->setText(ui.label_personname1->text());
-			ui.label_personno2->setText(ui.label_personno1->text());
-			ui.label_personage2->setText(ui.label_personage1->text()); 
-			if (ui.label_picture1->pixmap() != NULL) 
-				ui.label_picture2->setPixmap(*ui.label_picture1->pixmap()); 
-			else 
-				ui.label_picture2->setText(ui.label_picture1->text());   
+		if (!judgeActionVaild(accessEventLog.person_id(), iEnter))  //当前进入、离开重复,人脸识别设备可能发送多条数据
+		{
+			SingletonLog->debug(QString(QString::fromLocal8Bit("当前动作重复") + " personID:" + QString::number(accessEventLog.person_id()) + " Enter:" + QString::number(iEnter)).toLocal8Bit().data());
+			return;
+		} 
 
-			ui.label_department1->setText(QString::fromLocal8Bit("部门:").append(QString::fromLocal8Bit("上级领导")));
-			ui.label_personname1->setText(QString::fromLocal8Bit("姓名:").append(QString::fromUtf8(accessEventLog.person_name().c_str())));
-			ui.label_personno1->setText("");
-			ui.label_personage1->setText("");  
-			ui.label_picture1->setText(QString::fromLocal8Bit("欢迎领导\n莅临指导"));   //set之后会把pixmap清空
-
-			SingletonLog->logDebug(QString(QString::fromLocal8Bit("上级领导") + " personID:" + QString::number(accessEventLog.person_id()) + " Enter:" + QString::number(iEnter)).toLocal8Bit().data());
-			modifyTableData(QString::fromLocal8Bit("上级领导"), iEnter);  
-		}
-		else if (accessEventLog.pic_url().length() != 0)
-		{    
-			QString departmentUuid = SingletonDBHelper->getDepartmentUuidByPersonID(accessEventLog.person_id()); 
-			if (departmentUuid.isEmpty()) 
-				SingletonLog->logDebug(QString("personID:" + QString::number(accessEventLog.person_id()) + QString::fromLocal8Bit("不存在")).toLocal8Bit().data());
-		  
-			int dispDeptNameSize = 0;
-			while(1)
+		QString departmentUuid = SingletonDBHelper->getDeptUuidByPersonID(accessEventLog.person_id()); 
+		int dispDeptNameSize = 0;
+		while(1)
+		{  
+			if(mapDispDeptInfo.contains(departmentUuid))
+			{
+				QString dispDeptName = mapDispDeptInfo.value(departmentUuid); 
+				dispDeptNameSize = dispDeptName.size(); 
+				SingletonLog->debug(QString("personID:%1 dispDeptName:%2  Enter:%3").arg(accessEventLog.person_id()).arg(dispDeptName).arg(iEnter).toLocal8Bit().data());
+				modifyTableData(dispDeptName, iEnter);  
+				break;
+			}
+			else if (departmentUuid.isEmpty())
 			{ 
-				if(mapDepartmentSeq.contains(departmentUuid))
-				{
-					QString dispDeptName = mapDepartmentSeq.value(departmentUuid); 
-					dispDeptNameSize = dispDeptName.size(); 
-					SingletonLog->logDebug(QString(dispDeptName + " personID:" + QString::number(accessEventLog.person_id()) + " Enter:" + QString::number(iEnter)).toLocal8Bit().data());
-					modifyTableData(dispDeptName, iEnter);  
-					break;
-				}
-				else if (departmentUuid.isEmpty())
-				{ 
-					SingletonLog->logDebug(QString(QString::fromLocal8Bit("既不是厂内单位，也不是外委单位") + " personID:" + QString::number(accessEventLog.person_id()) + " Enter:" + QString::number(iEnter)).toLocal8Bit().data());
-					break;
-				}
-				else
-				{ 
-					departmentUuid = SingletonDBHelper->getParentUuidByUuid(departmentUuid);
-					continue; 
-				} 
+				QString dispDeptName = QString::fromLocal8Bit("其他人员");
+				dispDeptNameSize = dispDeptName.size();
+				SingletonLog->debug(QString("personID:%1 dispDeptName:%2  Enter:%3").arg(accessEventLog.person_id()).arg(dispDeptName).arg(iEnter).toLocal8Bit().data());
+				modifyTableData(QString::fromLocal8Bit("其他人员"), iEnter);  
+				break;
 			} 
-				 
-			ui.label_department2->setText(ui.label_department1->text());
-			ui.label_personname2->setText(ui.label_personname1->text());
-			ui.label_personno2->setText(ui.label_personno1->text());
-			ui.label_personage2->setText(ui.label_personage1->text());
-			if (ui.label_picture1->pixmap() == NULL)                     //第一次获取数据，没有照片 
-				ui.label_picture2->setText(ui.label_picture1->text());   
-			else 
-				ui.label_picture2->setPixmap(*ui.label_picture1->pixmap()); 
-			 
-			QString dept_name = QString::fromUtf8(accessEventLog.dept_name().c_str()); 
-			
-			if (dept_name.size() > 5 && dispDeptNameSize > 5) 
-				dept_name.insert(4, "\n     ");    
-			else if (dept_name.contains(QString::fromLocal8Bit("实习生"))) 
-				dept_name.insert(5, "\n     ");    
-			else if (dept_name.size() > 5 && dispDeptNameSize != 0)  //如果dept_name超出了5个字符，在部门和班组中间插入换行符
-				dept_name.insert(dispDeptNameSize, "\n     ");  
-			 
-			ui.label_department1->setText(QString::fromLocal8Bit("部门:").append(dept_name));
-			ui.label_personname1->setText(QString::fromLocal8Bit("姓名:").append(QString::fromUtf8(accessEventLog.person_name().c_str())));
-			ui.label_personno1->setText(QString::fromLocal8Bit("编号:").append(SingletonDBHelper->getAddressByPersonID(accessEventLog.person_id())));
-			ui.label_personage1->setText(QString::fromLocal8Bit("年龄:").append(SingletonDBHelper->getAgeByPersonID(accessEventLog.person_id())));
-			//通过url获取照片
-			QPixmap pixmap = requestPicUrlData(QString::fromUtf8(accessEventLog.pic_url().c_str())); 
-			ui.label_picture1->setPixmap(pixmap); 
+			else
+			{ 
+				departmentUuid = SingletonDBHelper->getParentUuidByChildUuid(departmentUuid);
+				continue; 
+			} 
 		}  
+
+		ui.label_department2->setText(ui.label_department1->text());
+		ui.label_personname2->setText(ui.label_personname1->text());
+		ui.label_personno2->setText(ui.label_personno1->text());
+		ui.label_personage2->setText(ui.label_personage1->text());
+		if (ui.label_picture1->pixmap() == NULL)                     //第一次获取数据，没有照片 
+			ui.label_picture2->setText(ui.label_picture1->text());   
+		else 
+			ui.label_picture2->setPixmap(*ui.label_picture1->pixmap()); 
+			 
+		QString dept_name = QString::fromUtf8(accessEventLog.dept_name().c_str());
+		if (dept_name.size() >= 10)   
+			dept_name.insert(5, "\n     ");  
+		else if (dept_name.size() > 5 && dispDeptNameSize != 0)  //如果dept_name超出了5个字符，在部门和班组中间插入换行符
+			dept_name.insert(dispDeptNameSize, "\n     ");  
+			 
+		ui.label_department1->setText(QString::fromLocal8Bit("部门:").append(dept_name));
+		ui.label_personname1->setText(QString::fromLocal8Bit("姓名:").append(QString::fromUtf8(accessEventLog.person_name().c_str())));
+		ui.label_personno1->setText(QString::fromLocal8Bit("编号:").append(SingletonDBHelper->getAddressByPersonID(accessEventLog.person_id())));
+		ui.label_personage1->setText(QString::fromLocal8Bit("年龄:").append(SingletonDBHelper->getAgeByPersonID(accessEventLog.person_id())));
+		//通过url获取照片
+		QPixmap pixmap = requestPicUrlData(QString::fromUtf8(accessEventLog.pic_url().c_str())); 
+		ui.label_picture1->setPixmap(pixmap);  
 	}    
 }
   
@@ -359,83 +366,78 @@ void facerecognitionstatistics::dispCurrentTime()
 {
 	ui.label_currentTime->setText(QDateTime::currentDateTime().toString(QString::fromLocal8Bit("MM月dd日 hh时mm分ss秒")));
 
-	if(QDateTime::currentDateTime().toString("hh:mm:ss") == "00:30:00") 
-		 initTableWidget(); 
-	 
-	if((QDateTime::currentDateTime().toString("mm").toInt() % 10 == 0) && (QDateTime::currentDateTime().toString("ss").toInt() == 0))
-	{  
-		SingletonDBHelper->readPersonData(); 
-		SingletonLog->logDebug(QString("PersonDataSize:%1").arg(SingletonDBHelper->getPersonData().size()).toStdString());
-	}
-
 	if(QDateTime::currentDateTime().toString("hh:mm:ss") == "01:00:00")
 	{  
-		SingletonDBHelper->readDepartment();
-		SingletonLog->logDebug(QString("DepartmentNameSize:%1").arg(SingletonDBHelper->getDepartmentName().size()).toStdString());
+		SingletonDBHelper->readPersonData();  
+		SingletonDBHelper->readDepartment(); 
+		//初始化表格数据
+		initTableWidget(); 
 	}    
 }
  
  
 void facerecognitionstatistics::pushButtonClick()
 {
-	int iEnter = 1;
-	if (!judgeActionVaild(123, iEnter))  //当前进入、离开无效
-	{
-		SingletonLog->logDebug(QString(QString::fromLocal8Bit("当前动作重复") + " personID:" + QString::number(123) + " Enter:" + QString::number(iEnter)).toLocal8Bit().data());
-		return;
-	} 
-	 
-	ui.label_department2->setText(ui.label_department1->text()); 
-	ui.label_personname2->setText(ui.label_personname1->text()); 
-	ui.label_personno2->setText(ui.label_personno1->text()); 
-	ui.label_personage2->setText(ui.label_personage1->text()); 
-	if (ui.label_picture1->pixmap() != NULL) 
-		ui.label_picture2->setPixmap(ui.label_picture1->pixmap()->scaled(ui.label_picture2->size())); 
-	else 
-		ui.label_picture2->setText(ui.label_picture1->text());   
-
-	ui.label_department1->setText(QString::fromLocal8Bit("部门:").append(QString::fromLocal8Bit("上级领导")));
-	ui.label_personname1->setText(QString::fromLocal8Bit("姓名:").append(QString::fromUtf8("1123")));
-	ui.label_personno1->setText("");
-	ui.label_personage1->setText("");  
-	ui.label_picture1->setText(QString::fromLocal8Bit("欢迎领导\n莅临指导"));  
-
-	SingletonLog->logDebug(QString(QString::fromLocal8Bit("上级领导") + " personID:" + QString::number(1123) + " Enter:" + QString::number(iEnter)).toLocal8Bit().data()); 
+	modifyTableData(QString::fromLocal8Bit("其他人员"), 1);
 } 
 
 
 
 
 /*
-if(mapDepartmentSeq.values().contains(departmentName))
+
+if(QString::fromLocal8Bit("贵宾卡") == QString::fromUtf8(accessEventLog.dept_name().c_str()))
+{    
+ui.label_department2->setText(ui.label_department1->text());
+ui.label_personname2->setText(ui.label_personname1->text());
+ui.label_personno2->setText(ui.label_personno1->text());
+ui.label_personage2->setText(ui.label_personage1->text()); 
+if (ui.label_picture1->pixmap() != NULL) 
+ui.label_picture2->setPixmap(*ui.label_picture1->pixmap()); 
+else 
+ui.label_picture2->setText(ui.label_picture1->text());   
+
+ui.label_department1->setText(QString::fromLocal8Bit("部门:").append(QString::fromLocal8Bit("上级领导")));
+ui.label_personname1->setText(QString::fromLocal8Bit("姓名:").append(QString::fromUtf8(accessEventLog.person_name().c_str())));
+ui.label_personno1->setText("");
+ui.label_personage1->setText("");  
+ui.label_picture1->setText(QString::fromLocal8Bit("欢迎领导\n莅临指导"));   //set之后会把pixmap清空
+
+SingletonLog->debug(QString(QString::fromLocal8Bit("上级领导") + " personID:" + QString::number(accessEventLog.person_id()) + " Enter:" + QString::number(iEnter)).toLocal8Bit().data());
+modifyTableData(QString::fromLocal8Bit("上级领导"), iEnter);  
+}
+else 
+
+
+if(mapDispDeptInfo.values().contains(departmentName))
 {
-	SingletonLog->logDebug(QString(departmentName + " personID:" + QString::number(accessEventLog.person_id()) + " " + QString::number(iEnter)).toLocal8Bit().data());
+	SingletonLog->debug(QString(departmentName + " personID:" + QString::number(accessEventLog.person_id()) + " " + QString::number(iEnter)).toLocal8Bit().data());
 	modifyTableData(departmentName, iEnter);  
 	break;
 }else if(departmentName == QString::fromLocal8Bit("抚州发电本部"))
 { 
-	SingletonLog->logDebug(QString(QString::fromLocal8Bit("其他部门") + " personID:" + QString::number(accessEventLog.person_id()) + " Enter:" + QString::number(iEnter)).toLocal8Bit().data());
+	SingletonLog->debug(QString(QString::fromLocal8Bit("其他部门") + " personID:" + QString::number(accessEventLog.person_id()) + " Enter:" + QString::number(iEnter)).toLocal8Bit().data());
 	modifyTableData(QString::fromLocal8Bit("其他部门"), iEnter);  
 	break;
 }else if(departmentName == QString::fromLocal8Bit("苏华建设"))
 { 
-	SingletonLog->logDebug(QString(QString::fromLocal8Bit("大唐环境") + " personID:" + QString::number(accessEventLog.person_id()) + " Enter:" + QString::number(iEnter)).toLocal8Bit().data());
+	SingletonLog->debug(QString(QString::fromLocal8Bit("大唐环境") + " personID:" + QString::number(accessEventLog.person_id()) + " Enter:" + QString::number(iEnter)).toLocal8Bit().data());
 	modifyTableData(QString::fromLocal8Bit("大唐环境"), iEnter);  
 	break;
 }else if(departmentName == QString::fromLocal8Bit("外委单位") || departmentName == QString::fromLocal8Bit("新余电厂"))
 { 
-	SingletonLog->logDebug(QString(QString::fromLocal8Bit("其他外委单位") + " personID:" + QString::number(accessEventLog.person_id()) + " Enter:" + QString::number(iEnter)).toLocal8Bit().data());
+	SingletonLog->debug(QString(QString::fromLocal8Bit("其他外委单位") + " personID:" + QString::number(accessEventLog.person_id()) + " Enter:" + QString::number(iEnter)).toLocal8Bit().data());
 	modifyTableData(QString::fromLocal8Bit("其他外委单位"), iEnter);  
 	break;
 }else if (departmentName == QString::fromLocal8Bit("临时来访"))
 { 
-	SingletonLog->logDebug(QString(QString::fromLocal8Bit("上级领导") + " personID:" + QString::number(accessEventLog.person_id()) + " " + QString::number(iEnter)).toLocal8Bit().data());
+	SingletonLog->debug(QString(QString::fromLocal8Bit("上级领导") + " personID:" + QString::number(accessEventLog.person_id()) + " " + QString::number(iEnter)).toLocal8Bit().data());
 	modifyTableData(QString::fromLocal8Bit("上级领导"), iEnter);  
 	break;
 } else if (departmentName.isEmpty())
 {
 	departmentNameSize = 4;
-	SingletonLog->logDebug(QString(QString::fromLocal8Bit("既不是厂内单位，也不是外委单位") + " personID:" + QString::number(accessEventLog.person_id()) + " " + QString::number(iEnter)).toLocal8Bit().data());
+	SingletonLog->debug(QString(QString::fromLocal8Bit("既不是厂内单位，也不是外委单位") + " personID:" + QString::number(accessEventLog.person_id()) + " " + QString::number(iEnter)).toLocal8Bit().data());
 	break;
 } 
 */ 
