@@ -20,8 +20,8 @@ facerecognitionstatistics::facerecognitionstatistics(QWidget *parent, Qt::WFlags
 	currentTimer = new QTimer(this);
 	connect(currentTimer, SIGNAL(timeout()), this, SLOT(dispCurrentTime()));
 	currentTimer->start(1 * 1000); 
-	  
-	//读取mysql数据 
+	    
+	//读取mysql数据  
 	if(SingletonDBHelper->open( SingletonConfig->getIpMySql(), SingletonConfig->getPortMySql(), SingletonConfig->getDbNameMySql(), 
 								 SingletonConfig->getUserNameMySql(), SingletonConfig->getPassWdMySql())) 
 	{
@@ -35,26 +35,27 @@ facerecognitionstatistics::facerecognitionstatistics(QWidget *parent, Qt::WFlags
 		SingletonLog->warn(QString("MYSQL Connect Failure:%1").arg(SingletonConfig->getIpMySql()).toStdString());
 		SingletonLog->warn(SingletonDBHelper->getError().toLocal8Bit().data());
 	} 
-
+	 	
 	//初始化表格样式
 	initTableStyle(); 
-
+	
 	//初始化表格数据
 	initTableWidget(); 
-	  
+
+	
 	//初始化activemq
 	activemq::library::ActiveMQCPP::initializeLibrary(); 
 	std::string brokerURI = SingletonConfig->getActiveMQ().toStdString();
 	std::string destURI = "openapi.acs.topic"; 
 	bool useTopics = true;
 	bool clientAck = false;
-	  
+	 
 	// Create the consumer
 	consumer = new SimpleAsyncConsumer( brokerURI, destURI, useTopics, clientAck ); 
 	connect(consumer, SIGNAL(sendMessage(CommEventLog)), this, SLOT(receiverMessage(CommEventLog)));
 
 	// Start it up and it will listen forever.
-	consumer->runConsumer();    
+	consumer->runConsumer();     
 }
 
 facerecognitionstatistics::~facerecognitionstatistics()
@@ -70,6 +71,8 @@ facerecognitionstatistics::~facerecognitionstatistics()
 
 void facerecognitionstatistics::initTableStyle()
 {
+	ui.frame_1->setFixedWidth(570); 
+	ui.frame_2->setFixedWidth(570);
 	ui.label_picture1->setFixedWidth(250); 
 	ui.label_picture1->setFixedHeight(ui.label_picture1->height());
 	ui.label_picture1->setScaledContents(true); 
@@ -149,50 +152,6 @@ void facerecognitionstatistics::initTableWidget()
 		sumItem->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); 
 		ui.tableWidget->setItem(rowCount, 3, sumItem);
 	}
-	
-
-	/*
-	QByteArray byteArray;
-	QNetworkRequest request; //网络请求  
-	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");//设置头 
-	request.setUrl(QUrl(SingletonConfig->getJavaUrl()));
-	QNetworkReply *reply = picUrlManager->post(request, byteArray); //推送    
-	eventLoop.exec(); 
-	// 获取响应信息  
-	QByteArray tmpData = reply->readAll(); //读取所有数据
-	reply->deleteLater();
-	reply = NULL;
-	 
-	QJson::Parser parser;
-	bool ok;
-	QVariant result = parser.parse(QString(tmpData).toUtf8(), &ok);
-	QVariantList mylist = result.toList();  
-	foreach (QVariant plugin, mylist) {
-		QVariantMap mymap = plugin.toMap();
-		qDebug()<<"deptUuid:"<<mymap["deptUuid"].toString();
-		qDebug()<<"parentdeptuuid:"<<mymap["parentdeptuuid"].toString();
-		qDebug()<<"deptName:"<<mymap["deptName"].toString();
-		qDebug()<<"bLeaf:"<<mymap["bLeaf"].toBool();
-		qDebug()<<"entryCount:"<<mymap["entryCount"].toLongLong();
-		qDebug()<<"exitCount:"<<mymap["exitCount"].toLongLong();
-		qDebug()<<"stillCount:"<<mymap["stillCount"].toLongLong();
-		qDebug()<<"passCount:"<<mymap["passCount"].toLongLong();
-		qDebug()<<"_order:"<<mymap["_order"].toLongLong(); 
-
-		QString order = mymap["_order"].toString();
-		QStringList deptUuids =  mymap["deptUuid"].toString().split(",");
-		QString deptName = QString::fromUtf8(mymap["deptName"].toByteArray());
-		QString entryCount = mymap["entryCount"].toString();
-		QString exitCount = mymap["exitCount"].toString();
-		QString stillCount = mymap["stillCount"].toString();
-		QString str = "order:" + order + " deptUuids:"+ deptUuids.join(",") +  " deptName:"+ deptName + " entryCount" + entryCount + " exitCount" +  exitCount +  " stillCount" +  stillCount; 
-		SingletonLog->debug(str.toLocal8Bit().data());
-		 
-		for (int i = 0; i < deptUuids.size(); ++i) 
-			mapDispDeptInfo.insert(deptUuids.at(i), deptName);  
-
-	} 
-	*/
 }
 
 QPixmap facerecognitionstatistics::requestPicUrlData(QString picUrl)
@@ -246,7 +205,7 @@ void facerecognitionstatistics::modifyTableData(QString departmentName, int iEnt
 	}  
 }
 
- //同时进入，需要保存2条记录
+//不能通过保存人员进出状态来判断是否重复，因为员工可能会从其他门进出
 bool facerecognitionstatistics::judgeActionVaild(int personID, int enter)
 {
 	static int person1,person2;
@@ -285,7 +244,7 @@ void facerecognitionstatistics::receiverMessage(CommEventLog commEventLog)
 		//1:进入 0:离开
 		int iEnter = SingletonDBHelper->getDoorFlag(commEventLog.source_idx().c_str());
 
-		QString str = QString("door_id:") + QString::number(accessEventLog.door_id()) +
+		QString str = QString("Door_id:") + QString::number(accessEventLog.door_id()) +
 			" cardID:" + accessEventLog.event_card().c_str() +
 			" deviceID:" + commEventLog.source_idx().c_str() + 
 			" personID:" + QString::number(accessEventLog.person_id()) + 
@@ -340,15 +299,16 @@ void facerecognitionstatistics::receiverMessage(CommEventLog commEventLog)
 		ui.label_personname2->setText(ui.label_personname1->text());
 		ui.label_personno2->setText(ui.label_personno1->text());
 		ui.label_personage2->setText(ui.label_personage1->text());
-		if (ui.label_picture1->pixmap() == NULL)                     //第一次获取数据，没有照片 
-			ui.label_picture2->setText(ui.label_picture1->text());   
-		else 
-			ui.label_picture2->setPixmap(*ui.label_picture1->pixmap()); 
+		if (ui.label_picture1->pixmap() != NULL)                          //第一次获取数据，没有照片 
+		{
+			QImage image = ui.label_picture1->pixmap()->toImage();
+			ui.label_picture2->setPixmap(QPixmap::fromImage(image));   
+		}
 			 
 		QString dept_name = QString::fromUtf8(accessEventLog.dept_name().c_str());
 		if (dept_name.size() >= 10)   
 			dept_name.insert(5, "\n     ");  
-		else if (dept_name.size() > 5 && dispDeptNameSize != 0)  //如果dept_name超出了5个字符，在部门和班组中间插入换行符
+		else if (dept_name.size() > 5 && dispDeptNameSize != 0)                    //如果dept_name超出了5个字符，在部门和班组中间插入换行符
 			dept_name.insert(dispDeptNameSize, "\n     ");  
 			 
 		ui.label_department1->setText(QString::fromLocal8Bit("部门:").append(dept_name));
@@ -383,6 +343,50 @@ void facerecognitionstatistics::pushButtonClick()
 
 
 
+	
+
+	/*
+	QByteArray byteArray;
+	QNetworkRequest request; //网络请求  
+	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");//设置头 
+	request.setUrl(QUrl(SingletonConfig->getJavaUrl()));
+	QNetworkReply *reply = picUrlManager->post(request, byteArray); //推送    
+	eventLoop.exec(); 
+	// 获取响应信息  
+	QByteArray tmpData = reply->readAll(); //读取所有数据
+	reply->deleteLater();
+	reply = NULL;
+	 
+	QJson::Parser parser;
+	bool ok;
+	QVariant result = parser.parse(QString(tmpData).toUtf8(), &ok);
+	QVariantList mylist = result.toList();  
+	foreach (QVariant plugin, mylist) {
+		QVariantMap mymap = plugin.toMap();
+		qDebug()<<"deptUuid:"<<mymap["deptUuid"].toString();
+		qDebug()<<"parentdeptuuid:"<<mymap["parentdeptuuid"].toString();
+		qDebug()<<"deptName:"<<mymap["deptName"].toString();
+		qDebug()<<"bLeaf:"<<mymap["bLeaf"].toBool();
+		qDebug()<<"entryCount:"<<mymap["entryCount"].toLongLong();
+		qDebug()<<"exitCount:"<<mymap["exitCount"].toLongLong();
+		qDebug()<<"stillCount:"<<mymap["stillCount"].toLongLong();
+		qDebug()<<"passCount:"<<mymap["passCount"].toLongLong();
+		qDebug()<<"_order:"<<mymap["_order"].toLongLong(); 
+
+		QString order = mymap["_order"].toString();
+		QStringList deptUuids =  mymap["deptUuid"].toString().split(",");
+		QString deptName = QString::fromUtf8(mymap["deptName"].toByteArray());
+		QString entryCount = mymap["entryCount"].toString();
+		QString exitCount = mymap["exitCount"].toString();
+		QString stillCount = mymap["stillCount"].toString();
+		QString str = "order:" + order + " deptUuids:"+ deptUuids.join(",") +  " deptName:"+ deptName + " entryCount" + entryCount + " exitCount" +  exitCount +  " stillCount" +  stillCount; 
+		SingletonLog->debug(str.toLocal8Bit().data());
+		 
+		for (int i = 0; i < deptUuids.size(); ++i) 
+			mapDispDeptInfo.insert(deptUuids.at(i), deptName);  
+
+	} 
+	*/
 
 /*
 

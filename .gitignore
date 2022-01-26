@@ -35,3 +35,5 @@ ipch/
 *.filters
 *.user
 Win32/
+activemq/
+*.db
